@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event Details - Naija Events</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="nav-bar">
+    <a href="../index.html" class="brand"><span class="brand-mark"></span> Naija Events</a>
+    <ul class="nav-links">
+      <li><a href="../index.html">Home</a></li>
+      <li><a href="explore.html" class="active">Explore</a></li>
+      <li><a href="search.html">Search</a></li>
+      <li class="nav-organizer-only"><a href="create-event.html">Create Event</a></li>
+      <li class="nav-organizer-only"><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="my-tickets.html">My Tickets</a></li>
+    </ul>
+    <div class="nav-actions" id="nav-account-slot"></div>
+  </nav>
+</header>
+
+<section class="section">
+  <div class="container" id="event-container">
+    <p class="small">Loading event...</p>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-row">
+    <span>Naija Events - a student project. Not a real ticketing service.</span>
+    <span><a href="explore.html">Back to all events</a></span>
+  </div>
+</footer>
+
+<script src="../js/app.js"></script>
+<script>
+  const eventId = new URLSearchParams(window.location.search).get("id");
+
+  async function loadEvent() {
+    const container = document.getElementById("event-container");
+    if (!eventId) {
+      container.innerHTML = '<div class="empty-state">No event was specified.</div>';
+      return;
+    }
+    try {
+      const { event } = await apiGet("/api/events/" + eventId);
+      document.title = event.title + " - Naija Events";
+
+      container.innerHTML = `
+        <div style="display:grid; grid-template-columns: 1.4fr 1fr; gap:32px; align-items:start;">
+          <div>
+            <span class="ticket-category">${escapeHtml(event.category)}</span>
+            <h1>${escapeHtml(event.title)}</h1>
+            <p class="small">📍 ${escapeHtml(event.location)} &nbsp;•&nbsp; 📅 ${formatDate(event.event_date)} &nbsp;•&nbsp; 🕒 ${event.event_time || "TBA"}</p>
+            <hr class="divider">
+            <h3>About this event</h3>
+            <p>${escapeHtml(event.description || "No description was provided for this event.")}</p>
+            <p class="small"><strong>Organizer:</strong> ${escapeHtml(event.organizer_name || "Unknown")}</p>
+            <div class="trust-panel" id="trust-panel"><p class="small">Checking this event...</p></div>
+          </div>
+          <div class="ticket-detail-card" style="border-style:solid;">
+            <span class="themed-badge" id="event-badge">${escapeHtml(event.image_emoji)}</span>
+            <div class="ticket-price" style="font-size:1.4rem;">${formatNaira(event.price)}</div>
+            <p class="small">Capacity: ${event.capacity} attendees</p>
+            <div id="book-message" class="message"></div>
+            <button class="btn btn-primary btn-block" id="book-btn">Get a ticket</button>
+            <p class="form-note">You need an account to book. If you are not logged in you will be asked to log in first.</p>
+          </div>
+        </div>
+      `;
+      applyCategoryTheme(document.getElementById("event-badge"), event.category, "themed-badge");
+      loadTrust(event);
+
+      document.getElementById("book-btn").addEventListener("click", async () => {
+        const user = getCurrentUser();
+        const msg = document.getElementById("book-message");
+        if (!user) {
+          window.location.href = "login.html?next=event-details.html?id=" + eventId;
+          return;
+        }
+        try {
+          const result = await apiPost("/api/tickets", { event_id: eventId, user_id: user.id });
+          showMessage(msg, "Ticket booked! Code: " + result.ticket_code, "success");
+        } catch (err) {
+          showMessage(msg, err.message, "error");
+        }
+      });
+    } catch (err) {
+      container.innerHTML = `<div class="empty-state">Could not load this event: ${err.message}</div>`;
+    }
+  }
+
+  // ---- Is this event legit? Shows the trust check and the report form ----
+  async function loadTrust(event) {
+    const panel = document.getElementById("trust-panel");
+    try {
+      const { trust } = await apiGet("/api/events/" + eventId + "/trust");
+
+      const signals = trust.signals.map(sig =>
+        `<li class="signal-${sig.kind}">${escapeHtml(sig.text)}</li>`).join("");
+      const reasons = Object.entries(trust.reasons).map(([key, text]) =>
+        `<option value="${key}">${escapeHtml(text)}</option>`).join("");
+
+      const user = getCurrentUser();
+      let reportArea;
+      if (!user) {
+        reportArea = `<p class="small"><a href="login.html?next=event-details.html?id=${eventId}">Log in</a> to report this event.</p>`;
+      } else if (Number(user.id) === Number(event.organizer_id)) {
+        reportArea = "";
+      } else {
+        reportArea = `
+          <div class="report-box">
+            <strong>Think this event is a scam?</strong>
+            <div id="report-message" class="message"></div>
+            <select id="report-reason"><option value="">Choose a reason...</option>${reasons}</select>
+            <textarea id="report-details" rows="3" maxlength="500" placeholder="What made you suspicious? (optional)"></textarea>
+            <button class="btn btn-outline btn-small" id="report-btn">Report this event</button>
+          </div>`;
+      }
+
+      panel.innerHTML = `
+        <h3>Is this event legit?</h3>
+        <div class="trust-banner trust-${trust.level}">
+          ${escapeHtml(trust.label)}
+          <small>Trust score: ${trust.score}/100${trust.report_count ? " &nbsp;•&nbsp; " + trust.report_count + " report(s)" : ""}</small>
+        </div>
+        <div class="trust-meter"><span style="width:${trust.score}%"></span></div>
+        <ul class="signal-list">${signals}</ul>
+        <p class="form-note">This is an automatic check based on warning signs. It is a guide, not a guarantee.
+        Never pay an organizer by direct bank transfer outside this platform.</p>
+        ${reportArea}`;
+
+      if (trust.level === "scam") {
+        const btn = document.getElementById("book-btn");
+        btn.disabled = true;
+        btn.textContent = "Booking disabled";
+      }
+
+      const reportBtn = document.getElementById("report-btn");
+      if (reportBtn) {
+        reportBtn.addEventListener("click", async () => {
+          const msg = document.getElementById("report-message");
+          try {
+            const result = await apiPost("/api/events/" + eventId + "/report", {
+              user_id: user.id,
+              reason: document.getElementById("report-reason").value,
+              details: document.getElementById("report-details").value,
+            });
+            showMessage(msg, result.message, "success");
+            reportBtn.disabled = true;
+          } catch (err) {
+            showMessage(msg, err.message, "error");
+          }
+        });
+      }
+    } catch (err) {
+      panel.innerHTML = "";
+    }
+  }
+
+  loadEvent();
+</script>
+</body>
+</html>

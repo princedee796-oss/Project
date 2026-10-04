@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log In - Naija Events</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="nav-bar">
+    <a href="../index.html" class="brand"><span class="brand-mark"></span> Naija Events</a>
+    <ul class="nav-links">
+      <li><a href="../index.html">Home</a></li>
+      <li><a href="explore.html">Explore</a></li>
+      <li><a href="search.html">Search</a></li>
+      <li class="nav-organizer-only"><a href="create-event.html">Create Event</a></li>
+      <li class="nav-organizer-only"><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="my-tickets.html">My Tickets</a></li>
+    </ul>
+    <div class="nav-actions" id="nav-account-slot"></div>
+  </nav>
+</header>
+
+<section class="section">
+  <div class="container">
+    <div class="auth-grid">
+      <div class="auth-form-side">
+        <h2>Log in</h2>
+        <p class="small mt-0">New here? <a href="register.html">Create an account</a> instead.</p>
+        <div id="login-message" class="message"></div>
+        <form id="login-form" class="form-card">
+          <label for="email">Email address</label>
+          <input type="email" id="email" required placeholder="you@example.com">
+
+          <label for="password">Password</label>
+          <input type="password" id="password" required placeholder="Your password">
+
+          <button type="submit" class="btn btn-primary btn-block mt-2">Log in</button>
+        </form>
+        <p class="form-note">Demo organizer account: <strong>organizer@naijaevents.ng</strong> / <strong>demo1234</strong></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-row">
+    <span>Naija Events - a student project. Not a real ticketing service.</span>
+    <span><a href="../index.html">Back home</a></span>
+  </div>
+</footer>
+
+<script src="../js/app.js"></script>
+<script>
+  document.getElementById("login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById("login-message");
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    try {
+      const result = await apiPost("/api/login", { email, password });
+      setCurrentUser(result.user);
+      const next = new URLSearchParams(window.location.search).get("next");
+      // only follow same-site page names (never a full URL) after login
+      const safeNext = next && /^[\w-]+\.html$/.test(next) ? next : null;
+      window.location.href = safeNext || (result.user.role === "admin" ? "admin.html"
+        : result.user.role === "organizer" ? "dashboard.html" : "my-tickets.html");
+    } catch (err) {
+      showMessage(msg, err.message, "error");
+    }
+  });
+</script>
+</body>
+</html>

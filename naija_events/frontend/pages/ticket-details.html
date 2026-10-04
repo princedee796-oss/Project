@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ticket Details - Naija Events</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="nav-bar">
+    <a href="../index.html" class="brand"><span class="brand-mark"></span> Naija Events</a>
+    <ul class="nav-links">
+      <li><a href="../index.html">Home</a></li>
+      <li><a href="explore.html">Explore</a></li>
+      <li><a href="search.html">Search</a></li>
+      <li class="nav-organizer-only"><a href="create-event.html">Create Event</a></li>
+      <li class="nav-organizer-only"><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="my-tickets.html" class="active">My Tickets</a></li>
+    </ul>
+    <div class="nav-actions" id="nav-account-slot"></div>
+  </nav>
+</header>
+
+<section class="section">
+  <div class="container">
+    <h2 class="mt-0">Ticket details</h2>
+    <div id="ticket-container">
+      <p class="small">Loading ticket...</p>
+    </div>
+
+    <!-- Shown only to organizer accounts (see the script below) -->
+    <div id="verify-section" style="display:none;">
+    <hr class="divider">
+
+    <h3>Verify a ticket at the door</h3>
+    <p class="small">Type or paste a ticket code for one of your events to check it in. A ticket can only be checked in once.</p>
+    <div class="filter-bar">
+      <div class="field">
+        <label for="verify-input">Ticket code</label>
+        <input type="text" id="verify-input" placeholder="NGE-XXXXX-0000">
+      </div>
+      <button class="btn btn-dark" id="verify-btn">Verify</button>
+    </div>
+    <div id="verify-message" class="message"></div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-row">
+    <span>Naija Events - a student project. Not a real ticketing service.</span>
+    <span><a href="my-tickets.html">Back to my tickets</a></span>
+  </div>
+</footer>
+
+<script src="../js/app.js"></script>
+<script>
+  const code = new URLSearchParams(window.location.search).get("code");
+
+  // Only organizers get the verify box. Attendees (and logged-out visitors) never see it.
+  const currentUser = getCurrentUser();
+  if (currentUser && currentUser.role === "organizer") {
+    document.getElementById("verify-section").style.display = "block";
+  }
+
+  function statusPillClass(status) {
+    if (status === "valid") return "status-valid";
+    if (status === "used") return "status-used";
+    return "status-cancelled";
+  }
+
+  async function loadTicket() {
+    const container = document.getElementById("ticket-container");
+    if (!code) {
+      container.innerHTML = '<div class="empty-state">No ticket code was given.</div>';
+      return;
+    }
+    try {
+      const { ticket } = await apiGet("/api/tickets/" + code);
+      document.getElementById("verify-input").value = ticket.ticket_code;
+      container.innerHTML = `
+        <div class="ticket-detail-card">
+          <span class="themed-badge" id="ticket-badge">${escapeHtml(ticket.image_emoji)}</span>
+          <h3 class="mt-0">${escapeHtml(ticket.title)}</h3>
+          <p class="small">📍 ${escapeHtml(ticket.location)} &nbsp;•&nbsp; 📅 ${formatDate(ticket.event_date)} &nbsp;•&nbsp; 🕒 ${ticket.event_time || "TBA"}</p>
+          <div class="ticket-code-box">${ticket.ticket_code}</div>
+          <p class="small">Ticket holder: <strong>${escapeHtml(ticket.full_name)}</strong> (${escapeHtml(ticket.email)})</p>
+          <span class="status-pill ${statusPillClass(ticket.status)}">${ticket.status}</span>
+        </div>
+      `;
+      applyCategoryTheme(document.getElementById("ticket-badge"), ticket.category, "themed-badge");
+    } catch (err) {
+      container.innerHTML = `<div class="empty-state">${err.message}</div>`;
+    }
+  }
+
+  document.getElementById("verify-btn").addEventListener("click", async () => {
+    const msg = document.getElementById("verify-message");
+    const value = document.getElementById("verify-input").value.trim();
+    try {
+      const result = await apiPost("/api/tickets/verify", { ticket_code: value });
+      showMessage(msg, result.message, result.valid ? "success" : "error");
+      if (result.valid) loadTicket();
+    } catch (err) {
+      showMessage(msg, err.message, "error");
+    }
+  });
+
+  loadTicket();
+</script>
+</body>
+</html>

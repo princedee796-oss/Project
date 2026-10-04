@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create Event - Naija Events</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="nav-bar">
+    <a href="../index.html" class="brand"><span class="brand-mark"></span> Naija Events</a>
+    <ul class="nav-links">
+      <li><a href="../index.html">Home</a></li>
+      <li><a href="explore.html">Explore</a></li>
+      <li><a href="search.html">Search</a></li>
+      <li class="nav-organizer-only"><a href="create-event.html" class="active">Create Event</a></li>
+      <li class="nav-organizer-only"><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="my-tickets.html">My Tickets</a></li>
+    </ul>
+    <div class="nav-actions" id="nav-account-slot"></div>
+  </nav>
+</header>
+
+<section class="section">
+  <div class="container">
+    <h2 class="mt-0" id="page-title">Create an event</h2>
+    <p>Fill in the details below. Once saved, your event shows up on the Explore page right away.</p>
+
+    <div id="login-required" class="empty-state" style="display:none;">
+      You need to be logged in as an organizer to create an event.
+      <br><br><a href="login.html?next=create-event.html" class="btn btn-primary">Log in</a>
+    </div>
+
+    <form id="event-form" class="form-card wide" style="display:none;">
+      <div id="form-message" class="message"></div>
+
+      <label for="title">Event title</label>
+      <input type="text" id="title" required placeholder="e.g. Lagos Jazz Evening">
+
+      <div class="field-row">
+        <div>
+          <label for="category">Category</label>
+          <input type="text" id="category" required placeholder="e.g. Music, Tech, Food">
+        </div>
+        <div>
+          <label for="location">Location</label>
+          <input type="text" id="location" required placeholder="e.g. Lagos">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div>
+          <label for="event_date">Date</label>
+          <input type="date" id="event_date" required>
+        </div>
+        <div>
+          <label for="event_time">Time</label>
+          <input type="time" id="event_time">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div>
+          <label for="price">Ticket price (NGN, 0 for free)</label>
+          <input type="number" id="price" min="0" value="0">
+        </div>
+        <div>
+          <label for="capacity">Capacity</label>
+          <input type="number" id="capacity" min="1" value="100">
+        </div>
+      </div>
+
+      <label for="image_emoji">Icon (pick one emoji to represent the event)</label>
+      <input type="text" id="image_emoji" maxlength="2" value="🎉">
+
+      <label for="description">Description</label>
+      <textarea id="description" placeholder="What should attendees expect?"></textarea>
+
+      <button type="submit" class="btn btn-primary btn-block mt-2" id="submit-btn">Save event</button>
+    </form>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-row">
+    <span>Naija Events - a student project. Not a real ticketing service.</span>
+    <span><a href="dashboard.html">Go to your dashboard</a></span>
+  </div>
+</footer>
+
+<script src="../js/app.js"></script>
+<script>
+  const editId = new URLSearchParams(window.location.search).get("id");
+  const user = getCurrentUser();
+
+  async function init() {
+    if (!user) {
+      document.getElementById("login-required").style.display = "block";
+      return;
+    }
+    if (user.role !== "organizer") {
+      const notice = document.getElementById("login-required");
+      notice.innerHTML = `
+        Only organizer accounts can create or edit events.
+        Your account is registered as an attendee.
+        <br><br>
+        <a href="explore.html" class="btn btn-primary">Explore events</a>
+      `;
+      notice.style.display = "block";
+      return;
+    }
+    document.getElementById("event-form").style.display = "block";
+
+    if (editId) {
+      document.getElementById("page-title").textContent = "Edit event";
+      document.getElementById("submit-btn").textContent = "Update event";
+      const { event } = await apiGet("/api/events/" + editId);
+      document.getElementById("title").value = event.title;
+      document.getElementById("category").value = event.category;
+      document.getElementById("location").value = event.location;
+      document.getElementById("event_date").value = event.event_date;
+      document.getElementById("event_time").value = event.event_time || "";
+      document.getElementById("price").value = event.price;
+      document.getElementById("capacity").value = event.capacity;
+      document.getElementById("image_emoji").value = event.image_emoji;
+      document.getElementById("description").value = event.description || "";
+    }
+  }
+
+  document.getElementById("event-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById("form-message");
+    const payload = {
+      title: document.getElementById("title").value,
+      category: document.getElementById("category").value,
+      location: document.getElementById("location").value,
+      event_date: document.getElementById("event_date").value,
+      event_time: document.getElementById("event_time").value,
+      price: document.getElementById("price").value,
+      capacity: document.getElementById("capacity").value,
+      image_emoji: document.getElementById("image_emoji").value || "🎉",
+      description: document.getElementById("description").value,
+    };
+
+    try {
+      if (editId) {
+        await apiPut("/api/events/" + editId, payload);
+        showMessage(msg, "Event updated!", "success");
+      } else {
+        payload.organizer_id = user.id;
+        const result = await apiPost("/api/events", payload);
+        showMessage(msg, "Event created!", "success");
+        setTimeout(() => { window.location.href = "event-details.html?id=" + result.event_id; }, 700);
+        return;
+      }
+      setTimeout(() => { window.location.href = "dashboard.html"; }, 700);
+    } catch (err) {
+      showMessage(msg, err.message, "error");
+    }
+  });
+
+  init();
+</script>
+</body>
+</html>

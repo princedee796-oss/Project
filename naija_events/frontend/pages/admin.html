@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin - Naija Events</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="nav-bar">
+    <a href="../index.html" class="brand"><span class="brand-mark"></span> Naija Events</a>
+    <ul class="nav-links">
+      <li><a href="../index.html">Home</a></li>
+      <li><a href="explore.html">Explore</a></li>
+      <li><a href="search.html">Search</a></li>
+      <li class="nav-organizer-only"><a href="create-event.html">Create Event</a></li>
+      <li class="nav-organizer-only"><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="my-tickets.html">My Tickets</a></li>
+    </ul>
+    <div class="nav-actions" id="nav-account-slot"></div>
+  </nav>
+</header>
+
+<section class="section">
+  <div class="container">
+    <div id="login-required" class="empty-state" style="display:none;">
+      The admin dashboard is only for admin accounts.
+      <br><br><a href="login.html?next=admin.html" class="btn btn-primary">Log in as admin</a>
+    </div>
+
+    <div id="admin-content" style="display:none;">
+      <div class="section-head">
+        <div>
+          <h2 class="mt-0">Admin dashboard</h2>
+          <p>Manage organizers and attendees, see what they have been doing, and review reported events.</p>
+        </div>
+      </div>
+      <div id="admin-message" class="message"></div>
+
+      <div class="admin-tabs" role="tablist">
+        <button class="admin-tab active" data-tab="overview">Overview</button>
+        <button class="admin-tab" data-tab="users">Users</button>
+        <button class="admin-tab" data-tab="activity">Activity</button>
+        <button class="admin-tab" data-tab="events">Event moderation</button>
+      </div>
+
+      <!-- OVERVIEW -->
+      <div class="admin-panel active" id="panel-overview">
+        <div class="stat-row" id="overview-stats"></div>
+        <h3>Latest activity</h3>
+        <div id="overview-activity"></div>
+      </div>
+
+      <!-- USERS -->
+      <div class="admin-panel" id="panel-users">
+        <div class="admin-filters">
+          <input type="search" id="user-q" placeholder="Search name or email">
+          <select id="user-role">
+            <option value="">All account types</option>
+            <option value="attendee">Attendees</option>
+            <option value="organizer">Organizers</option>
+            <option value="admin">Admins</option>
+          </select>
+          <select id="user-status">
+            <option value="">Any status</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+          </select>
+        </div>
+        <div class="table-scroll">
+          <table id="users-table">
+            <thead><tr><th>User</th><th>Type</th><th>Status</th><th>Events</th><th>Tickets</th><th>Last login</th><th>Manage</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ACTIVITY -->
+      <div class="admin-panel" id="panel-activity">
+        <div class="admin-filters">
+          <select id="activity-action"><option value="">All actions</option></select>
+        </div>
+        <div id="activity-list"></div>
+        <div class="pager">
+          <button class="btn btn-outline btn-small" id="activity-prev">Newer</button>
+          <button class="btn btn-outline btn-small" id="activity-next">Older</button>
+          <span class="small" id="activity-count"></span>
+        </div>
+      </div>
+
+      <!-- EVENT MODERATION (scam review) -->
+      <div class="admin-panel" id="panel-events">
+        <p class="small mt-0">Mark trusted events as verified and flag scams. Flagged events cannot be booked.</p>
+        <div class="table-scroll">
+          <table id="events-table">
+            <thead><tr><th>Event</th><th>Organizer</th><th>Trust check</th><th>Reports</th><th>Decision</th></tr></thead>
+            <tbody><tr><td colspan="5" class="small">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- one dialog reused for user details, password reset and confirmations -->
+<dialog id="dialog" class="admin-dialog"></dialog>
+
+<footer class="site-footer">
+  <div class="container footer-row">
+    <span>Naija Events - a student project. Not a real ticketing service.</span>
+    <span><a href="explore.html">Back to all events</a></span>
+  </div>
+</footer>
+
+<script src="../js/app.js"></script>
+<script>
+  const me = getCurrentUser();
+  const $ = (id) => document.getElementById(id);
+  const ACTION_LABELS = {
+    register: "Signed up", login: "Logged in", logout: "Logged out", login_failed: "Failed login attempt",
+    login_blocked: "Blocked login (suspended)", event_create: "Created an event", event_update: "Edited an event",
+    event_delete: "Deleted an event", ticket_book: "Booked a ticket", ticket_verify: "Checked a ticket in",
+    event_report: "Reported an event", profile_update: "Updated their profile",
+    admin_suspend_user: "Admin suspended an account", admin_reactivate_user: "Admin reactivated an account",
+    admin_change_role: "Admin changed an account type", admin_reset_password: "Admin reset a password",
+    admin_delete_user: "Admin deleted an account", admin_ticket_status: "Admin changed a ticket",
+    admin_delete_event: "Admin deleted an event", admin_event_status: "Admin moderated an event",
+  };
+  const actionLabel = (a) => ACTION_LABELS[a] || a;
+
+  function notify(text, type) {
+    showMessage($("admin-message"), text, type || "success");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  const fail = (err) => notify(err.message, "error");
+  const when = (ts) => ts ? escapeHtml(ts.replace("T", " ").slice(0, 16)) + " UTC" : "never";
+  const rolePill = (r) => `<span class="role-pill role-${escapeHtml(r)}">${escapeHtml(r)}</span>`;
+  const statusPill = (s) => `<span class="status-pill ${s === "active" ? "status-valid" : "status-cancelled"}">${escapeHtml(s)}</span>`;
+
+  function activityHtml(rows) {
+    if (!rows.length) return '<p class="small">Nothing recorded yet.</p>';
+    return rows.map(a => `
+      <div class="activity-line">
+        <strong>${escapeHtml(actionLabel(a.action))}</strong>
+        ${a.details ? " - " + escapeHtml(a.details) : ""}
+        <time>${when(a.created_at)}${a.user_id ? " · user #" + a.user_id : ""}${a.target_user_id && a.target_user_id !== a.user_id ? " · affects user #" + a.target_user_id : ""}</time>
+      </div>`).join("");
+  }
+
+  // ---------- tabs ----------
+  const loaders = { overview: loadOverview, users: loadUsers, activity: loadActivity, events: loadEvents };
+  function showTab(name) {
+    document.querySelectorAll(".admin-tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+    document.querySelectorAll(".admin-panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + name));
+    loaders[name]().catch(fail);
+  }
+  document.querySelectorAll(".admin-tab").forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
+
+  // ---------- overview ----------
+  async function loadOverview() {
+    const d = await apiGet("/api/admin/overview");
+    const cards = [
+      ["Users", d.users], ["Attendees", d.attendees], ["Organizers", d.organizers], ["Admins", d.admins],
+      ["Suspended", d.suspended], ["New this week", d.new_users_7d], ["Active this week", d.active_users_7d],
+      ["Events", d.events], ["Flagged events", d.flagged_events], ["Tickets", d.tickets], ["Reports", d.reports],
+    ];
+    $("overview-stats").innerHTML = cards.map(([label, value]) =>
+      `<div class="stat-card"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`).join("");
+    $("overview-activity").innerHTML = activityHtml(d.recent_activity);
+  }
+
+  // ---------- users ----------
+  async function loadUsers() {
+    const qs = new URLSearchParams({ q: $("user-q").value, role: $("user-role").value, status: $("user-status").value });
+    const { users } = await apiGet("/api/admin/users?" + qs);
+    const tbody = $("users-table").querySelector("tbody");
+    if (!users.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="small">No users match.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = users.map(u => {
+      const self = u.id === me.id;
+      const suspended = u.status === "suspended";
+      return `
+      <tr class="${suspended ? "muted-row" : ""}">
+        <td>${escapeHtml(u.full_name)}${self ? ' <span class="small">(you)</span>' : ""}<br><span class="small">${escapeHtml(u.email)}</span></td>
+        <td>${rolePill(u.role)}</td>
+        <td>${statusPill(u.status)}</td>
+        <td>${u.events_created}</td>
+        <td>${u.tickets_booked}</td>
+        <td class="small">${when(u.last_login_at)}</td>
+        <td><div class="row-actions">
+          <button class="btn btn-outline btn-small" data-act="view" data-id="${u.id}">View</button>
+          ${self ? "" : `
+          <select data-act="role" data-id="${u.id}" aria-label="Account type for ${escapeHtml(u.full_name)}">
+            ${["attendee", "organizer", "admin"].map(r => `<option value="${r}" ${r === u.role ? "selected" : ""}>${r}</option>`).join("")}
+          </select>
+          <button class="btn btn-outline btn-small" data-act="${suspended ? "reactivate" : "suspend"}" data-id="${u.id}">${suspended ? "Reactivate" : "Suspend"}</button>
+          <button class="btn btn-outline btn-small" data-act="password" data-id="${u.id}">Reset password</button>
+          <button class="btn btn-danger btn-small" data-act="delete" data-id="${u.id}">Delete</button>`}
+        </div></td>
+      </tr>`;
+    }).join("");
+    // remember names for the confirmation texts
+    tbody._users = Object.fromEntries(users.map(u => [u.id, u]));
+  }
+
+  $("users-table").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    const u = $("users-table").querySelector("tbody")._users[btn.dataset.id];
+    const act = btn.dataset.act;
+    if (act === "view") return openUser(u.id);
+    if (act === "suspend") return confirmBox(`Suspend ${u.full_name}?`,
+      "They are signed out straight away and cannot log in, book tickets, create events or report events until you reactivate them.",
+      "Suspend", () => userAction(u.id, "POST", "status", { status: "suspended" }));
+    if (act === "reactivate") return userAction(u.id, "POST", "status", { status: "active" });
+    if (act === "password") return passwordBox(u);
+    if (act === "delete") return confirmBox(`Delete ${u.full_name}?`,
+      `This permanently removes the account${u.role === "organizer" ? ", every event they run (and those events' tickets)" : ""}, their tickets and their reports. This cannot be undone. Consider suspending instead.`,
+      "Delete permanently", () => userAction(u.id, "DELETE", "", null));
+  });
+
+  $("users-table").addEventListener("change", (e) => {
+    const sel = e.target.closest("select[data-act='role']");
+    if (!sel) return;
+    const u = $("users-table").querySelector("tbody")._users[sel.dataset.id];
+    const role = sel.value;
+    const extra = role === "admin" ? " Admins can manage every account on the site." : "";
+    confirmBox(`Make ${u.full_name} an ${role}?`,
+      `Their account type changes from ${u.role} to ${role} immediately.${extra}`,
+      "Change", () => userAction(u.id, "POST", "role", { role }), () => loadUsers().catch(fail));
+  });
+
+  async function userAction(id, method, action, body) {
+    try {
+      const path = "/api/admin/users/" + id + (action ? "/" + action : "");
+      const result = method === "DELETE" ? await apiDelete(path) : await apiPost(path, body);
+      notify(result.message);
+    } catch (err) { fail(err); }
+    loadUsers().catch(fail);
+  }
+
+  let searchTimer;
+  $("user-q").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadUsers().catch(fail), 250); });
+  $("user-role").addEventListener("change", () => loadUsers().catch(fail));
+  $("user-status").addEventListener("change", () => loadUsers().catch(fail));
+
+  // ---------- dialogs ----------
+  const dialog = $("dialog");
+  function confirmBox(title, text, okLabel, onOk, onCancel) {
+    dialog.innerHTML = `<h3>${escapeHtml(title)}</h3><p>${escapeHtml(text)}</p>
+      <div class="dialog-actions">
+        <button class="btn btn-outline" id="dlg-cancel">Cancel</button>
+        <button class="btn btn-danger" id="dlg-ok">${escapeHtml(okLabel)}</button>
+      </div>`;
+    $("dlg-cancel").onclick = () => { dialog.close(); if (onCancel) onCancel(); };
+    $("dlg-ok").onclick = () => { dialog.close(); onOk(); };
+    dialog.oncancel = () => { if (onCancel) onCancel(); };
+    dialog.showModal();
+  }
+
+  function passwordBox(u) {
+    dialog.innerHTML = `<h3>Reset password for ${escapeHtml(u.full_name)}</h3>
+      <p class="small mt-0">They are signed out everywhere. Tell them the new password privately.</p>
+      <label for="new-pw">New password (at least 8 characters)</label>
+      <input type="text" id="new-pw" autocomplete="off">
+      <div class="dialog-actions">
+        <button class="btn btn-outline" id="dlg-cancel">Cancel</button>
+        <button class="btn btn-primary" id="dlg-ok">Reset password</button>
+      </div>`;
+    $("dlg-cancel").onclick = () => dialog.close();
+    $("dlg-ok").onclick = () => {
+      const pw = $("new-pw").value;
+      if (pw.length < 8) { $("new-pw").focus(); return; }
+      dialog.close();
+      userAction(u.id, "POST", "password", { password: pw });
+    };
+    dialog.oncancel = null;
+    dialog.showModal();
+  }
+
+  async function openUser(id) {
+    let d;
+    try { d = await apiGet("/api/admin/users/" + id); } catch (err) { return fail(err); }
+    const u = d.user;
+    const events = d.events.length ? `<table><thead><tr><th>Event</th><th>Date</th><th>Sold</th><th>Review</th><th></th></tr></thead><tbody>${d.events.map(ev => `
+      <tr><td><a href="event-details.html?id=${ev.id}">${escapeHtml(ev.title)}</a></td><td>${escapeHtml(ev.event_date)}</td>
+      <td>${ev.sold}/${ev.capacity}</td><td>${escapeHtml(ev.verification_status)}</td>
+      <td><button class="btn btn-danger btn-small" data-del-event="${ev.id}" data-title="${escapeHtml(ev.title)}">Remove</button></td></tr>`).join("")}</tbody></table>`
+      : '<p class="small">No events.</p>';
+    const tickets = d.tickets.length ? `<table><thead><tr><th>Event</th><th>Code</th><th>Status</th></tr></thead><tbody>${d.tickets.map(t => `
+      <tr><td>${escapeHtml(t.title)}<br><span class="small">${escapeHtml(t.event_date)}</span></td>
+      <td><a href="ticket-details.html?code=${encodeURIComponent(t.ticket_code)}">${escapeHtml(t.ticket_code)}</a></td>
+      <td><select data-ticket="${escapeHtml(t.ticket_code)}" aria-label="Status of ticket ${escapeHtml(t.ticket_code)}">
+        ${["valid", "used", "cancelled"].map(st => `<option ${st === t.status ? "selected" : ""}>${st}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table>`
+      : '<p class="small">No tickets.</p>';
+    const reports = d.reports_made.length ? d.reports_made.map(r =>
+      `<p class="report-detail"><strong>${escapeHtml(r.title)}</strong> - ${escapeHtml(r.reason)}${r.details ? ": " + escapeHtml(r.details) : ""}</p>`).join("")
+      : '<p class="small">No reports made.</p>';
+
+    dialog.innerHTML = `
+      <h3>${escapeHtml(u.full_name)} ${rolePill(u.role)} ${statusPill(u.status)}</h3>
+      <p class="small mt-0">${escapeHtml(u.email)} · joined ${when(u.created_at)} · last login ${when(u.last_login_at)}</p>
+      <h4>Events organised</h4>${events}
+      <h4>Tickets booked</h4>${tickets}
+      <h4>Reports they made</h4>${reports}
+      <h4>Activity</h4>${activityHtml(d.activity)}
+      <div class="dialog-actions"><button class="btn btn-outline" id="dlg-close">Close</button></div>`;
+    $("dlg-close").onclick = () => { dialog.close(); };
+    dialog.oncancel = null;
+    dialog.querySelectorAll("select[data-ticket]").forEach(sel => sel.addEventListener("change", async () => {
+      try {
+        const r = await apiPost("/api/admin/tickets/" + encodeURIComponent(sel.dataset.ticket) + "/status", { status: sel.value });
+        notify(r.message);
+      } catch (err) { fail(err); }
+      openUser(id);
+    }));
+    dialog.querySelectorAll("button[data-del-event]").forEach(btn => btn.addEventListener("click", () => {
+      confirmBox(`Remove "${btn.dataset.title}"?`, "The event and all of its tickets and reports are deleted permanently.", "Remove event", async () => {
+        try { notify((await apiDelete("/api/admin/events/" + btn.dataset.delEvent)).message); } catch (err) { fail(err); }
+        openUser(id);
+      }, () => openUser(id));
+    }));
+    if (!dialog.open) dialog.showModal();
+  }
+
+  // ---------- activity ----------
+  const PAGE = 50;
+  let activityOffset = 0;
+  async function loadActivity() {
+    const qs = new URLSearchParams({ limit: PAGE, offset: activityOffset, action: $("activity-action").value });
+    const d = await apiGet("/api/admin/activity?" + qs);
+    const select = $("activity-action");
+    if (select.options.length === 1) {
+      d.actions.forEach(a => select.add(new Option(actionLabel(a), a)));
+    }
+    $("activity-list").innerHTML = activityHtml(d.activity);
+    $("activity-prev").disabled = activityOffset === 0;
+    $("activity-next").disabled = activityOffset + PAGE >= d.total;
+    $("activity-count").textContent = d.total ? `${activityOffset + 1}-${Math.min(activityOffset + PAGE, d.total)} of ${d.total}` : "";
+  }
+  $("activity-action").addEventListener("change", () => { activityOffset = 0; loadActivity().catch(fail); });
+  $("activity-prev").addEventListener("click", () => { activityOffset = Math.max(0, activityOffset - PAGE); loadActivity().catch(fail); });
+  $("activity-next").addEventListener("click", () => { activityOffset += PAGE; loadActivity().catch(fail); });
+
+  // ---------- event moderation (scam review) ----------
+  function levelBadge(row) {
+    if (row.level === "verified") return '<span class="trust-badge trust-verified">✔ Verified</span>';
+    if (row.level === "scam") return '<span class="trust-badge trust-scam">⚠ Flagged</span>';
+    return `<span class="status-pill ${row.level === "ok" ? "status-valid" : "status-cancelled"}">${escapeHtml(row.label)}</span>`;
+  }
+
+  async function loadEvents() {
+    const { events, reasons: reasonNames } = await apiGet("/api/admin/events");
+    const tbody = $("events-table").querySelector("tbody");
+    if (!events.length) { tbody.innerHTML = '<tr><td colspan="5" class="small">No events yet.</td></tr>'; return; }
+    tbody.innerHTML = events.map(ev => {
+      // report text comes from users, so it is always escaped
+      const reports = ev.reports.map(r => `
+        <p class="report-detail"><strong>${escapeHtml(reasonNames[r.reason] || r.reason)}</strong>
+        by ${escapeHtml(r.reporter)}${r.details ? ": " + escapeHtml(r.details) : ""}</p>`).join("");
+      return `
+        <tr>
+          <td><a href="event-details.html?id=${ev.id}">${escapeHtml(ev.title)}</a></td>
+          <td>${escapeHtml(ev.organizer)}</td>
+          <td>${levelBadge(ev)}<br><span class="small">Score ${ev.score}/100</span></td>
+          <td>${ev.report_count}${reports}</td>
+          <td><div class="row-actions">
+            <button class="btn btn-primary btn-small" data-id="${ev.id}" data-status="verified">Verify</button>
+            <button class="btn btn-danger btn-small" data-id="${ev.id}" data-status="flagged">Flag scam</button>
+            <button class="btn btn-outline btn-small" data-id="${ev.id}" data-status="unverified">Reset</button>
+            <button class="btn btn-danger btn-small" data-remove="${ev.id}" data-title="${escapeHtml(ev.title)}">Remove</button>
+          </div></td>
+        </tr>`;
+    }).join("");
+  }
+
+  $("events-table").addEventListener("click", async (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    if (btn.dataset.remove) {
+      return confirmBox(`Remove "${btn.dataset.title}"?`, "The event and all of its tickets and reports are deleted permanently.", "Remove event", async () => {
+        try { notify((await apiDelete("/api/admin/events/" + btn.dataset.remove)).message); } catch (err) { fail(err); }
+        loadEvents().catch(fail);
+      });
+    }
+    if (!btn.dataset.id) return;
+    try {
+      notify((await apiPost("/api/admin/events/" + btn.dataset.id + "/status", { status: btn.dataset.status })).message);
+    } catch (err) { fail(err); }
+    loadEvents().catch(fail);
+  });
+
+  // ---------- start ----------
+  if (!me || me.role !== "admin") {
+    $("login-required").style.display = "block";
+  } else {
+    $("admin-content").style.display = "block";
+    loadOverview().catch(fail);
+  }
+</script>
+</body>
+</html>

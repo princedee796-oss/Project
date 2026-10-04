@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filter Events - Naija Events</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="nav-bar">
+    <a href="../index.html" class="brand"><span class="brand-mark"></span> Naija Events</a>
+    <ul class="nav-links">
+      <li><a href="../index.html">Home</a></li>
+      <li><a href="explore.html" class="active">Explore</a></li>
+      <li><a href="search.html">Search</a></li>
+      <li class="nav-organizer-only"><a href="create-event.html">Create Event</a></li>
+      <li class="nav-organizer-only"><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="my-tickets.html">My Tickets</a></li>
+    </ul>
+    <div class="nav-actions" id="nav-account-slot"></div>
+  </nav>
+</header>
+
+<section class="section" style="padding-bottom:0;">
+  <div class="container">
+    <h2 class="mt-0">Filter events</h2>
+    <p>Narrow events down by location and a date range - useful for planning a trip or a weekend out.</p>
+
+    <div class="filter-bar">
+      <div class="field">
+        <label for="f-location">Location</label>
+        <select id="f-location"><option value="All">All locations</option></select>
+      </div>
+      <div class="field">
+        <label for="f-from">From date</label>
+        <input type="date" id="f-from">
+      </div>
+      <div class="field">
+        <label for="f-to">To date</label>
+        <input type="date" id="f-to">
+      </div>
+      <button class="btn btn-dark" id="filter-btn">Filter</button>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0;">
+  <div class="container">
+    <div class="event-grid" id="filter-grid">
+      <p class="small">Loading events...</p>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-row">
+    <span>Naija Events - a student project. Not a real ticketing service.</span>
+    <span><a href="explore.html">Back to explore</a></span>
+  </div>
+</footer>
+
+<script src="../js/app.js"></script>
+<script>
+  function renderResults(events) {
+    const grid = document.getElementById("filter-grid");
+    if (events.length === 0) {
+      grid.innerHTML = '<div class="empty-state">Nothing matches those filters yet. Try widening the date range.</div>';
+      return;
+    }
+    grid.innerHTML = events.map(ev => `
+      <a class="ticket-card" href="event-details.html?id=${ev.id}">
+        <div class="ticket-main">
+          <span class="ticket-emoji">${escapeHtml(ev.image_emoji)}</span>
+          <span class="ticket-category">${escapeHtml(ev.category)}</span>
+          <h3 class="ticket-title">${escapeHtml(ev.title)}${trustBadge(ev.verification_status)}</h3>
+          <p class="ticket-meta">📍 ${escapeHtml(ev.location)}</p>
+          <p class="ticket-meta">📅 ${formatDate(ev.event_date)}</p>
+        </div>
+        <div class="ticket-stub-edge" data-category="${escapeHtml(ev.category)}">
+          <div class="ticket-price">${formatNaira(ev.price)}<small>per ticket</small></div>
+        </div>
+      </a>
+    `).join("");
+    grid.querySelectorAll(".ticket-stub-edge[data-category]").forEach(el => applyCategoryTheme(el, el.dataset.category));
+  }
+
+  async function loadLocations() {
+    const { locations } = await apiGet("/api/locations");
+    const select = document.getElementById("f-location");
+    locations.forEach(l => select.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`));
+  }
+
+  async function applyFilter() {
+    const location = document.getElementById("f-location").value;
+    const from = document.getElementById("f-from").value;
+    const to = document.getElementById("f-to").value;
+    const params = new URLSearchParams({ location });
+    if (from) params.set("date_from", from);
+    if (to) params.set("date_to", to);
+    const { events } = await apiGet("/api/events?" + params.toString());
+    renderResults(events);
+  }
+
+  document.getElementById("filter-btn").addEventListener("click", applyFilter);
+  loadLocations().then(applyFilter);
+</script>
+</body>
+</html>

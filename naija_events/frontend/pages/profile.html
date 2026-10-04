@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Profile - Naija Events</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="nav-bar">
+    <a href="../index.html" class="brand"><span class="brand-mark"></span> Naija Events</a>
+    <ul class="nav-links">
+      <li><a href="../index.html">Home</a></li>
+      <li><a href="explore.html">Explore</a></li>
+      <li><a href="search.html">Search</a></li>
+      <li class="nav-organizer-only"><a href="create-event.html">Create Event</a></li>
+      <li class="nav-organizer-only"><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="my-tickets.html">My Tickets</a></li>
+    </ul>
+    <div class="nav-actions" id="nav-account-slot"></div>
+  </nav>
+</header>
+
+<section class="section">
+  <div class="container">
+    <div id="login-required" class="empty-state" style="display:none;">
+      Log in to see your profile.
+      <br><br><a href="login.html?next=profile.html" class="btn btn-primary">Log in</a>
+    </div>
+
+    <div id="profile-content" style="display:none;">
+      <h2 class="mt-0">My profile</h2>
+
+      <div class="form-card">
+        <div id="profile-message" class="message"></div>
+        <form id="profile-form">
+          <label for="full_name">Full name</label>
+          <input type="text" id="full_name" required>
+
+          <label for="email">Email address</label>
+          <input type="email" id="email" required>
+
+          <label>Account type</label>
+          <input type="text" id="role" disabled>
+
+          <label>Member since</label>
+          <input type="text" id="created_at" disabled>
+
+          <button type="submit" class="btn btn-primary btn-block mt-2">Save changes</button>
+        </form>
+      </div>
+
+      <p class="mt-2"><a href="my-tickets.html">View my tickets</a> &nbsp;|&nbsp; <a href="dashboard.html">Go to organizer dashboard</a></p>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-row">
+    <span>Naija Events - a student project. Not a real ticketing service.</span>
+    <span><a href="../index.html">Back home</a></span>
+  </div>
+</footer>
+
+<script src="../js/app.js"></script>
+<script>
+  const user = getCurrentUser();
+
+  async function init() {
+    if (!user) {
+      document.getElementById("login-required").style.display = "block";
+      return;
+    }
+    document.getElementById("profile-content").style.display = "block";
+    const { user: fresh } = await apiGet("/api/users/" + user.id);
+    document.getElementById("full_name").value = fresh.full_name;
+    document.getElementById("email").value = fresh.email;
+    document.getElementById("role").value = fresh.role;
+    document.getElementById("created_at").value = fresh.created_at;
+  }
+
+  document.getElementById("profile-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById("profile-message");
+    const payload = {
+      full_name: document.getElementById("full_name").value,
+      email: document.getElementById("email").value,
+    };
+    try {
+      await apiPut("/api/users/" + user.id, payload);
+      const updated = { ...user, ...payload };
+      setCurrentUser(updated);
+      showMessage(msg, "Profile updated!", "success");
+    } catch (err) {
+      showMessage(msg, err.message, "error");
+    }
+  });
+
+  init();
+</script>
+</body>
+</html>

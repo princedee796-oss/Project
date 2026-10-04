@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign Up - Naija Events</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="nav-bar">
+    <a href="../index.html" class="brand"><span class="brand-mark"></span> Naija Events</a>
+    <ul class="nav-links">
+      <li><a href="../index.html">Home</a></li>
+      <li><a href="explore.html">Explore</a></li>
+      <li><a href="search.html">Search</a></li>
+      <li class="nav-organizer-only"><a href="create-event.html">Create Event</a></li>
+      <li class="nav-organizer-only"><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="my-tickets.html">My Tickets</a></li>
+    </ul>
+    <div class="nav-actions" id="nav-account-slot"></div>
+  </nav>
+</header>
+
+<section class="section">
+  <div class="container">
+    <div class="auth-grid">
+      <div class="auth-form-side">
+        <h2>Create an account</h2>
+        <p class="small mt-0">Already registered? <a href="login.html">Log in</a> instead.</p>
+        <div id="register-message" class="message"></div>
+        <form id="register-form" class="form-card">
+          <label for="full_name">Full name</label>
+          <input type="text" id="full_name" required placeholder="e.g. Amaka Okafor">
+
+          <label for="email">Email address</label>
+          <input type="email" id="email" required placeholder="you@example.com">
+
+          <label for="password">Password</label>
+          <input type="password" id="password" required minlength="4" placeholder="At least 4 characters">
+
+          <label for="role">Account type</label>
+          <select id="role">
+            <option value="attendee">Attendee - I want to find and book events</option>
+            <option value="organizer">Organizer - I want to create and manage events</option>
+          </select>
+
+          <button type="submit" class="btn btn-primary btn-block mt-2">Create account</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-row">
+    <span>Naija Events - a student project. Not a real ticketing service.</span>
+    <span><a href="../index.html">Back home</a></span>
+  </div>
+</footer>
+
+<script src="../js/app.js"></script>
+<script>
+  document.getElementById("register-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById("register-message");
+    const full_name = document.getElementById("full_name").value;
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    const role = document.getElementById("role").value;
+    try {
+      await apiPost("/api/register", { full_name, email, password, role });
+      const loginResult = await apiPost("/api/login", { email, password });
+      setCurrentUser(loginResult.user);
+      showMessage(msg, "Account created! Redirecting...", "success");
+      setTimeout(() => { window.location.href = role === "organizer" ? "dashboard.html" : "my-tickets.html"; }, 700);
+    } catch (err) {
+      showMessage(msg, err.message, "error");
+    }
+  });
+</script>
+</body>
+</html>

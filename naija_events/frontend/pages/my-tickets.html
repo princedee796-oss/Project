@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Tickets - Naija Events</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="nav-bar">
+    <a href="../index.html" class="brand"><span class="brand-mark"></span> Naija Events</a>
+    <ul class="nav-links">
+      <li><a href="../index.html">Home</a></li>
+      <li><a href="explore.html">Explore</a></li>
+      <li><a href="search.html">Search</a></li>
+      <li class="nav-organizer-only"><a href="create-event.html">Create Event</a></li>
+      <li class="nav-organizer-only"><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="my-tickets.html" class="active">My Tickets</a></li>
+    </ul>
+    <div class="nav-actions" id="nav-account-slot"></div>
+  </nav>
+</header>
+
+<section class="section">
+  <div class="container">
+    <div id="login-required" class="empty-state" style="display:none;">
+      Log in to see the tickets you've booked.
+      <br><br><a href="login.html?next=my-tickets.html" class="btn btn-primary">Log in</a>
+    </div>
+
+    <div id="tickets-content" style="display:none;">
+      <h2 class="mt-0">My tickets</h2>
+      <p>Every ticket you've booked, newest first. Click a ticket to see its full details.</p>
+      <div class="event-grid" id="tickets-grid">
+        <p class="small">Loading tickets...</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-row">
+    <span>Naija Events - a student project. Not a real ticketing service.</span>
+    <span><a href="explore.html">Find more events to book</a></span>
+  </div>
+</footer>
+
+<script src="../js/app.js"></script>
+<script>
+  const user = getCurrentUser();
+
+  function statusPillClass(status) {
+    if (status === "valid") return "status-valid";
+    if (status === "used") return "status-used";
+    return "status-cancelled";
+  }
+
+  async function loadTickets() {
+    const { tickets } = await apiGet("/api/tickets?user_id=" + user.id);
+    const grid = document.getElementById("tickets-grid");
+    if (tickets.length === 0) {
+      grid.innerHTML = '<div class="empty-state">You have not booked any tickets yet. <a href="explore.html">Explore events</a> to get started.</div>';
+      return;
+    }
+    grid.innerHTML = tickets.map(t => `
+      <a class="ticket-card" href="ticket-details.html?code=${t.ticket_code}">
+        <div class="ticket-main">
+          <span class="ticket-emoji">${escapeHtml(t.image_emoji)}</span>
+          <h3 class="ticket-title">${escapeHtml(t.title)}</h3>
+          <p class="ticket-meta">📍 ${escapeHtml(t.location)} &nbsp;•&nbsp; 📅 ${formatDate(t.event_date)}</p>
+          <span class="status-pill ${statusPillClass(t.status)}">${t.status}</span>
+        </div>
+        <div class="ticket-stub-edge" data-category="${escapeHtml(t.category)}">
+          <div class="ticket-price" style="font-size:0.85rem;">${t.ticket_code}</div>
+        </div>
+      </a>
+    `).join("");
+    grid.querySelectorAll(".ticket-stub-edge[data-category]").forEach(el => applyCategoryTheme(el, el.dataset.category));
+  }
+
+  async function init() {
+    if (!user) {
+      document.getElementById("login-required").style.display = "block";
+      return;
+    }
+    document.getElementById("tickets-content").style.display = "block";
+    loadTickets();
+  }
+  init();
+</script>
+</body>
+</html>

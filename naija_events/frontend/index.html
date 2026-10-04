@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Naija Events - Find & Book Events Near You</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="nav-bar">
+    <a href="index.html" class="brand"><span class="brand-mark"></span> Naija Events</a>
+    <ul class="nav-links">
+      <li><a href="index.html" class="active">Home</a></li>
+      <li><a href="pages/explore.html">Explore</a></li>
+      <li><a href="pages/search.html">Search</a></li>
+      <li class="nav-organizer-only"><a href="pages/create-event.html">Create Event</a></li>
+      <li class="nav-organizer-only"><a href="pages/dashboard.html">Dashboard</a></li>
+      <li><a href="pages/my-tickets.html">My Tickets</a></li>
+    </ul>
+    <div class="nav-actions" id="nav-account-slot"></div>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <div>
+      <div class="eyebrow-line">Find your next outing</div>
+      <h1>Every event happening across Nigeria, one ticket booth.</h1>
+      <p class="lede">Discover concerts, tech meetups, food fairs and more in Lagos, Abuja, Port Harcourt and beyond - then book your ticket in under a minute.</p>
+      <div class="hero-cta">
+        <a href="pages/explore.html" class="btn btn-primary">Explore events</a>
+        <a href="pages/create-event.html" class="btn btn-outline">List your event</a>
+      </div>
+    </div>
+    <div class="hero-stub">
+      <h3 class="mt-0">Live on the platform</h3>
+      <div class="stub-row"><span>Total events</span> <strong id="stat-events">-</strong></div>
+      <div class="stub-row"><span>Cities covered</span> <strong id="stat-locations">-</strong></div>
+      <div class="stub-row"><span>Categories</span> <strong id="stat-categories">-</strong></div>
+      <a href="pages/explore.html" class="btn btn-dark btn-block mt-2">See what's on</a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <h2>Happening soon</h2>
+        <p>A handful of upcoming events picked from across the country.</p>
+      </div>
+      <a href="pages/explore.html" class="btn btn-outline">View all events</a>
+    </div>
+    <div class="event-grid" id="upcoming-grid">
+      <p class="small">Loading events...</p>
+    </div>
+  </div>
+</section>
+
+<section class="section section-alt">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <h2>How it works</h2>
+        <p>Built for both people attending events and the organizers running them.</p>
+      </div>
+    </div>
+    <div class="event-grid">
+      <div class="ticket-card" style="flex-direction:column;">
+        <div class="ticket-main">
+          <span class="ticket-emoji">🔎</span>
+          <h3 class="ticket-title">Search & filter</h3>
+          <p class="ticket-meta">Look up events by name, or filter by city, category and date to find something close by.</p>
+        </div>
+      </div>
+      <div class="ticket-card" style="flex-direction:column;">
+        <div class="ticket-main">
+          <span class="ticket-emoji">🎟️</span>
+          <h3 class="ticket-title">Book instantly</h3>
+          <p class="ticket-meta">Register for an event and get a unique ticket code right away - no printing needed.</p>
+        </div>
+      </div>
+      <div class="ticket-card" style="flex-direction:column;">
+        <div class="ticket-main">
+          <span class="ticket-emoji">📊</span>
+          <h3 class="ticket-title">Run your own event</h3>
+          <p class="ticket-meta">Organizers get a dashboard with attendee numbers, sales charts and CSV exports.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-row">
+    <span>Naija Events - a student project. Not a real ticketing service.</span>
+    <span><a href="pages/dashboard.html">Organizer dashboard</a></span>
+  </div>
+</footer>
+
+<script src="js/app.js"></script>
+<script>
+  async function loadHome() {
+    try {
+      const { events } = await apiGet("/api/events");
+      document.getElementById("stat-events").textContent = events.length;
+      document.getElementById("stat-locations").textContent = new Set(events.map(e => e.location)).size;
+      document.getElementById("stat-categories").textContent = new Set(events.map(e => e.category)).size;
+
+      const grid = document.getElementById("upcoming-grid");
+      const upcoming = events.slice(0, 6);
+      if (upcoming.length === 0) {
+        grid.innerHTML = '<div class="empty-state">No events yet. Be the first to list one!</div>';
+        return;
+      }
+      grid.innerHTML = upcoming.map(ev => `
+        <a class="ticket-card" href="pages/event-details.html?id=${ev.id}">
+          <div class="ticket-main">
+            <span class="ticket-emoji">${escapeHtml(ev.image_emoji)}</span>
+            <span class="ticket-category">${escapeHtml(ev.category)}</span>
+            <h3 class="ticket-title">${escapeHtml(ev.title)}${trustBadge(ev.verification_status)}</h3>
+            <p class="ticket-meta">📍 ${escapeHtml(ev.location)}</p>
+            <p class="ticket-meta">📅 ${formatDate(ev.event_date)}</p>
+          </div>
+          <div class="ticket-stub-edge" data-category="${escapeHtml(ev.category)}">
+            <div class="ticket-price">${formatNaira(ev.price)}<small>per ticket</small></div>
+          </div>
+        </a>
+      `).join("");
+      grid.querySelectorAll(".ticket-stub-edge[data-category]").forEach(el => applyCategoryTheme(el, el.dataset.category));
+    } catch (err) {
+      document.getElementById("upcoming-grid").innerHTML = `<div class="empty-state">Could not load events: ${err.message}</div>`;
+    }
+  }
+  loadHome();
+</script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Explore Events - Naija Events</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="nav-bar">
+    <a href="../index.html" class="brand"><span class="brand-mark"></span> Naija Events</a>
+    <ul class="nav-links">
+      <li><a href="../index.html">Home</a></li>
+      <li><a href="explore.html" class="active">Explore</a></li>
+      <li><a href="search.html">Search</a></li>
+      <li class="nav-organizer-only"><a href="create-event.html">Create Event</a></li>
+      <li class="nav-organizer-only"><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="my-tickets.html">My Tickets</a></li>
+    </ul>
+    <div class="nav-actions" id="nav-account-slot"></div>
+  </nav>
+</header>
+
+<section class="section" style="padding-bottom:0;">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <h2 class="mt-0">Explore events</h2>
+        <p>Every event currently listed on the platform, grouped by category.</p>
+      </div>
+      <a href="filter.html" class="btn btn-outline">Advanced filter</a>
+    </div>
+
+    <div class="filter-bar">
+      <div class="field">
+        <label for="category-select">Category</label>
+        <select id="category-select"><option value="All">All categories</option></select>
+      </div>
+      <div class="field">
+        <label for="location-select">Location</label>
+        <select id="location-select"><option value="All">All locations</option></select>
+      </div>
+      <button class="btn btn-dark" id="apply-btn">Apply</button>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0;">
+  <div class="container">
+    <div class="event-grid" id="events-grid">
+      <p class="small">Loading events...</p>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-row">
+    <span>Naija Events - a student project. Not a real ticketing service.</span>
+    <span><a href="search.html">Looking for something specific? Search here</a></span>
+  </div>
+</footer>
+
+<script src="../js/app.js"></script>
+<script>
+  async function loadFilters() {
+    const { categories } = await apiGet("/api/categories");
+    const { locations } = await apiGet("/api/locations");
+    const catSelect = document.getElementById("category-select");
+    const locSelect = document.getElementById("location-select");
+    categories.forEach(c => catSelect.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`));
+    locations.forEach(l => locSelect.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`));
+  }
+
+  function renderEvents(events) {
+    const grid = document.getElementById("events-grid");
+    if (events.length === 0) {
+      grid.innerHTML = '<div class="empty-state">No events match that filter yet.</div>';
+      return;
+    }
+    grid.innerHTML = events.map(ev => `
+      <a class="ticket-card" href="event-details.html?id=${ev.id}">
+        <div class="ticket-main">
+          <span class="ticket-emoji">${escapeHtml(ev.image_emoji)}</span>
+          <span class="ticket-category">${escapeHtml(ev.category)}</span>
+          <h3 class="ticket-title">${escapeHtml(ev.title)}${trustBadge(ev.verification_status)}</h3>
+          <p class="ticket-meta">📍 ${escapeHtml(ev.location)}</p>
+          <p class="ticket-meta">📅 ${formatDate(ev.event_date)}</p>
+        </div>
+        <div class="ticket-stub-edge" data-category="${escapeHtml(ev.category)}">
+          <div class="ticket-price">${formatNaira(ev.price)}<small>per ticket</small></div>
+        </div>
+      </a>
+    `).join("");
+    grid.querySelectorAll(".ticket-stub-edge[data-category]").forEach(el => applyCategoryTheme(el, el.dataset.category));
+  }
+
+  async function loadEvents() {
+    const category = document.getElementById("category-select").value;
+    const location = document.getElementById("location-select").value;
+    const params = new URLSearchParams({ category, location });
+    const { events } = await apiGet("/api/events?" + params.toString());
+    renderEvents(events);
+  }
+
+  document.getElementById("apply-btn").addEventListener("click", loadEvents);
+  loadFilters().then(loadEvents);
+</script>
+</body>
+</html>

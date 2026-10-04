@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Search Events - Naija Events</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="nav-bar">
+    <a href="../index.html" class="brand"><span class="brand-mark"></span> Naija Events</a>
+    <ul class="nav-links">
+      <li><a href="../index.html">Home</a></li>
+      <li><a href="explore.html">Explore</a></li>
+      <li><a href="search.html" class="active">Search</a></li>
+      <li class="nav-organizer-only"><a href="create-event.html">Create Event</a></li>
+      <li class="nav-organizer-only"><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="my-tickets.html">My Tickets</a></li>
+    </ul>
+    <div class="nav-actions" id="nav-account-slot"></div>
+  </nav>
+</header>
+
+<section class="section" style="padding-bottom:0;">
+  <div class="container">
+    <h2 class="mt-0">Search events by name</h2>
+    <p>Type part of an event's name below - results update after you search.</p>
+    <div class="filter-bar">
+      <div class="field">
+        <label for="search-input">Event name</label>
+        <input type="text" id="search-input" placeholder="e.g. Afrobeats, Comedy, Marathon...">
+      </div>
+      <button class="btn btn-dark" id="search-btn">Search</button>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0;">
+  <div class="container">
+    <div class="event-grid" id="results-grid">
+      <div class="empty-state">Type something above and press Search to find events.</div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-row">
+    <span>Naija Events - a student project. Not a real ticketing service.</span>
+    <span><a href="filter.html">Prefer to filter by location or date instead?</a></span>
+  </div>
+</footer>
+
+<script src="../js/app.js"></script>
+<script>
+  async function runSearch() {
+    const q = document.getElementById("search-input").value.trim();
+    const grid = document.getElementById("results-grid");
+    if (!q) {
+      grid.innerHTML = '<div class="empty-state">Type something above and press Search to find events.</div>';
+      return;
+    }
+    grid.innerHTML = '<p class="small">Searching...</p>';
+    const { events } = await apiGet("/api/events?q=" + encodeURIComponent(q));
+    if (events.length === 0) {
+      grid.innerHTML = `<div class="empty-state">No events found matching "${q}".</div>`;
+      return;
+    }
+    grid.innerHTML = events.map(ev => `
+      <a class="ticket-card" href="event-details.html?id=${ev.id}">
+        <div class="ticket-main">
+          <span class="ticket-emoji">${escapeHtml(ev.image_emoji)}</span>
+          <span class="ticket-category">${escapeHtml(ev.category)}</span>
+          <h3 class="ticket-title">${escapeHtml(ev.title)}${trustBadge(ev.verification_status)}</h3>
+          <p class="ticket-meta">📍 ${escapeHtml(ev.location)}</p>
+          <p class="ticket-meta">📅 ${formatDate(ev.event_date)}</p>
+        </div>
+        <div class="ticket-stub-edge" data-category="${escapeHtml(ev.category)}">
+          <div class="ticket-price">${formatNaira(ev.price)}<small>per ticket</small></div>
+        </div>
+      </a>
+    `).join("");
+    grid.querySelectorAll(".ticket-stub-edge[data-category]").forEach(el => applyCategoryTheme(el, el.dataset.category));
+  }
+
+  document.getElementById("search-btn").addEventListener("click", runSearch);
+  document.getElementById("search-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") runSearch();
+  });
+</script>
+</body>
+</html>
